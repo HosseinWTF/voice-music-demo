@@ -23,3 +23,9 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+# Projene özel engellenmesi gereken veri ve çıktı klasörleri
+dataset/
+outputs/
+
+# Başı noktalı sanal ortam klasörü (Kritik)
+.venv/
