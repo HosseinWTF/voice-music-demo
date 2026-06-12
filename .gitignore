@@ -28,4 +28,4 @@ dataset/
 outputs/
 
 # Başı noktalı sanal ortam klasörü (Kritik)
-.venv/
+.venv/.env
