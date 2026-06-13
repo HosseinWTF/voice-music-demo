@@ -740,7 +740,7 @@ def page_dataset():
 
             def clips_to_df(clip_list):
                 rows = []
-                for cid, fname, dur, emotion, added_at, source in clip_list:
+                for cid, fname, dur, emotion, added_at, source, *_ in clip_list:
                     info = config.EMOTION_LABELS.get(emotion, {"label": emotion or "—", "emoji": ""}) if emotion else {"label": "—", "emoji": ""}
                     rows.append({
                         "File": fname,
