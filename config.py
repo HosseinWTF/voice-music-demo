@@ -26,7 +26,21 @@ DATASET_DIR = "dataset"
 APP_TITLE = "Thomas"
 APP_SUBTITLE = "Voice-Music Separation & Emotion Labeling"
 
-# Emotion labels (wav2vec2 model output labels → English display)
+# Rate limiting
+RATE_LIMIT_MAX_UPLOADS = 5
+RATE_LIMIT_WINDOW_MINUTES = 60
+RATE_LIMIT_EXEMPT_USERS = [
+    u.strip()
+    for u in os.getenv("RATE_LIMIT_EXEMPT", "").split(",")
+    if u.strip()
+]
+
+# AI API endpoints
+SEPARATION_ENDPOINT = os.getenv("SEPARATION_ENDPOINT", "")
+EMOTION_ENDPOINT = os.getenv("EMOTION_ENDPOINT", "")
+API_TIMEOUT = 120
+
+# Emotion labels
 EMOTION_LABELS = {
     "happy":     {"label": "Happy",    "emoji": "😊", "color": "#F4D03F"},
     "sad":       {"label": "Sad",      "emoji": "😢", "color": "#5DADE2"},

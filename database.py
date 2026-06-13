@@ -56,7 +56,6 @@ def save_analysis(file_id, emotion, confidence, emotion_scores, vocal_file_path,
 
 
 def upload_vocal_to_storage(local_path: str, filename: str) -> str:
-    """Upload vocal file to Supabase Storage and return public URL."""
     try:
         db = get_client()
         with open(local_path, "rb") as f:
@@ -67,8 +66,11 @@ def upload_vocal_to_storage(local_path: str, filename: str) -> str:
             )
         url = db.storage.from_("vocals").get_public_url(filename)
         return url
-    except Exception as e:
+    except Exception:
         return None
+
+
+def add_to_dataset(filename, original_filename, duration, emotion=None, source="user"):
     db = get_client()
     db.table("dataset_clips").insert({
         "filename": filename,
@@ -179,6 +181,26 @@ def get_user_stats(username: str):
     }
 
 
+def get_recent_upload_count(username: str, window_start: str) -> int:
+    """Son 1 saatte tamamlanmış upload sayısı."""
+    db = get_client()
+    result = db.table("audio_files").select(
+        "id", count="exact"
+    ).eq("username", username).eq("status", "completed").gte("uploaded_at", window_start).execute()
+    return result.count or 0
+
+
+def get_oldest_recent_upload_time(username: str, window_start: str) -> str:
+    """Son 1 saat içindeki en eski completed upload'ın zamanı."""
+    db = get_client()
+    result = db.table("audio_files").select(
+        "uploaded_at"
+    ).eq("username", username).eq("status", "completed").gte("uploaded_at", window_start).order("uploaded_at", desc=False).limit(1).execute()
+    if result.data:
+        return result.data[0]["uploaded_at"]
+    return None
+
+
 def get_all_files():
     db = get_client()
     result = db.table("audio_files").select(
@@ -251,13 +273,3 @@ def get_recent_results(limit=10):
             r["processing_time"]
         ))
     return rows
-
-def add_to_dataset(filename, original_filename, duration, emotion=None, source="user"):
-    db = get_client()
-    db.table("dataset_clips").insert({
-        "filename": filename,
-        "original_filename": original_filename,
-        "duration": duration,
-        "emotion": emotion,
-        "source": source
-    }).execute()

@@ -7,12 +7,12 @@ import os
 import shutil
 import time
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import streamlit as st
 import config
 import database
 import audio_utils
-import processor
+import api_client
 
 TZ_OFFSET = timedelta(hours=3)
 
@@ -430,14 +430,44 @@ def page_upload():
     with st.expander("🎵 Listen to original"):
         st.audio(file_info["path"], format="audio/wav")
 
-    file_id = database.save_file(
-        filename=file_info["filename"],
-        original_filename=file_info["original_filename"],
-        duration=file_info["duration"],
-        sample_rate=file_info["sample_rate"],
-        file_size=file_info["file_size"],
-        username=st.session_state.get("user").email if st.session_state.get("user") else "anonymous"
-    )
+    current_user_email = st.session_state.get("user").email if st.session_state.get("user") else ""
+
+    # ── Rate limit kontrolü (save_file'dan ÖNCE, sadece yeni dosyada) ─
+    if st.session_state.get("file_id_for") != file_info["filename"]:
+        if current_user_email not in config.RATE_LIMIT_EXEMPT_USERS:
+            window_start = (datetime.now(timezone.utc) - timedelta(minutes=config.RATE_LIMIT_WINDOW_MINUTES)).isoformat()
+            recent = database.get_recent_upload_count(current_user_email, window_start)
+            if recent >= config.RATE_LIMIT_MAX_UPLOADS:
+                oldest = database.get_oldest_recent_upload_time(current_user_email, window_start)
+                if oldest:
+                    oldest_dt = datetime.fromisoformat(oldest.replace("Z", "+00:00"))
+                    unlocks_at = oldest_dt + timedelta(minutes=config.RATE_LIMIT_WINDOW_MINUTES)
+                    remaining = unlocks_at - datetime.now(timezone.utc)
+                    total_secs = max(0, int(remaining.total_seconds()))
+                    mins = total_secs // 60
+                    secs = total_secs % 60
+                    time_str = f"{mins + 1}m"
+                else:
+                    time_str = "some time"
+                st.error(
+                    f"⏳ Hourly upload limit reached ({config.RATE_LIMIT_MAX_UPLOADS} uploads/hour). "
+                    f"Your limit resets in {time_str}."
+                )
+                return
+
+        file_id = database.save_file(
+            filename=file_info["filename"],
+            original_filename=file_info["original_filename"],
+            duration=file_info["duration"],
+            sample_rate=file_info["sample_rate"],
+            file_size=file_info["file_size"],
+            username=current_user_email or "anonymous"
+        )
+        st.session_state["file_id_for"] = file_info["filename"]
+        st.session_state["current_file_id"] = file_id
+    else:
+        file_id = st.session_state["current_file_id"]
+    # ─────────────────────────────────────────────────────────────────
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -451,7 +481,7 @@ def page_upload():
     msg.info("Separating vocals…")
     bar.progress(20, text="Running separation model…")
 
-    result = processor.process_audio(file_info["path"], config.OUTPUT_DIR)
+    result = api_client.process_audio(file_info["path"], config.OUTPUT_DIR)
     bar.progress(60, text="Classifying emotion…")
 
     if not result["success"]:
@@ -803,7 +833,6 @@ def page_auth():
 
 def render_sidebar(username: str, page: str) -> str:
     with st.sidebar:
-        # Logo
         st.markdown(
             '<div style="padding:0.5rem 0 1.2rem;">'
             '<div style="font-family:\'Space Mono\',monospace; font-size:1.1rem; font-weight:700; '
@@ -814,7 +843,6 @@ def render_sidebar(username: str, page: str) -> str:
             unsafe_allow_html=True
         )
 
-        # User chip
         initials = username[:2].upper() if username else "?"
         st.markdown(
             f'<div class="user-chip">'
@@ -838,20 +866,12 @@ def render_sidebar(username: str, page: str) -> str:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown('<div style="border-top:1px solid var(--border); margin-bottom:1rem;"></div>', unsafe_allow_html=True)
 
-        # Sign out
         st.markdown('<div class="signout-btn">', unsafe_allow_html=True)
         if st.button("Sign Out", use_container_width=True):
             del st.session_state["user"]
             del st.session_state["username"]
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown(
-            '<div style="font-size:0.68rem; color:#4a5568; line-height:1.8; margin-top:1.5rem;">'
-            'Streamlit · Supabase · PyTorch<br>Demucs · Wav2Vec2 · Librosa'
-            '</div>',
-            unsafe_allow_html=True
-        )
 
     return selected
 
