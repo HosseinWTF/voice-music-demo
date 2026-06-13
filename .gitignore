@@ -31,3 +31,5 @@ outputs/
 .venv/.env
 backupapp.py
 backupconfig.py
+processor.py
+import_dataset.py
