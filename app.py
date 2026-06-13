@@ -12,7 +12,7 @@ import streamlit as st
 import config
 import database
 import audio_utils
-import api_client
+import processor
 
 TZ_OFFSET = timedelta(hours=3)
 
@@ -367,14 +367,17 @@ def consent_dialog(file_info: dict, emotion: str = None):
     with col1:
         if st.button("✅ Yes, contribute", use_container_width=True):
             dataset_filename = f"user_{Path(file_info['filename']).name}"
-            dataset_path = Path(config.DATASET_DIR) / dataset_filename
-            shutil.copy2(file_info["path"], dataset_path)
+            dataset_url = database.upload_vocal_to_storage(
+                file_info["path"],
+                f"dataset/{dataset_filename}"
+            )
             database.add_to_dataset(
                 filename=dataset_filename,
                 original_filename=file_info["original_filename"],
                 duration=file_info["duration"],
                 emotion=emotion,
-                source="user"
+                source="user",
+                file_url=dataset_url
             )
             st.success("Thank you for contributing to our research dataset! 🎙️")
     with col2:
@@ -446,7 +449,7 @@ def page_upload():
                     total_secs = max(0, int(remaining.total_seconds()))
                     mins = total_secs // 60
                     secs = total_secs % 60
-                    time_str = f"{mins + 1}m"
+                    time_str = f"{mins}m {secs}s"
                 else:
                     time_str = "some time"
                 st.error(
@@ -481,7 +484,7 @@ def page_upload():
     msg.info("Separating vocals…")
     bar.progress(20, text="Running separation model…")
 
-    result = api_client.process_audio(file_info["path"], config.OUTPUT_DIR)
+    result = processor.process_audio(file_info["path"], config.OUTPUT_DIR)
     bar.progress(60, text="Classifying emotion…")
 
     if not result["success"]:
@@ -755,12 +758,12 @@ def page_dataset():
                     selected = sel.selection.rows
                     if selected:
                         clip = preloaded[selected[0]]
-                        clip_path = Path(config.DATASET_DIR) / clip[1]
-                        if clip_path.exists():
+                        file_url = clip[6] if len(clip) > 6 else None
+                        if file_url and file_url.startswith("http"):
                             st.markdown(f"**Now playing:** `{clip[1]}`")
-                            st.audio(str(clip_path), format="audio/wav")
+                            st.audio(file_url, format="audio/wav")
                         else:
-                            st.caption("File not found on disk.")
+                            st.caption("File not available.")
                 else:
                     st.caption("No pre-loaded clips yet.")
 
@@ -770,12 +773,12 @@ def page_dataset():
                     selected2 = sel2.selection.rows
                     if selected2:
                         clip2 = user_clips[selected2[0]]
-                        clip_path2 = Path(config.DATASET_DIR) / clip2[1]
-                        if clip_path2.exists():
+                        file_url2 = clip2[6] if len(clip2) > 6 else None
+                        if file_url2 and file_url2.startswith("http"):
                             st.markdown(f"**Now playing:** `{clip2[1]}`")
-                            st.audio(str(clip_path2), format="audio/wav")
+                            st.audio(file_url2, format="audio/wav")
                         else:
-                            st.caption("File not found on disk.")
+                            st.caption("File not available.")
                 else:
                     st.caption("No user contributions yet.")
 

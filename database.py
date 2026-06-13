@@ -70,14 +70,15 @@ def upload_vocal_to_storage(local_path: str, filename: str) -> str:
         return None
 
 
-def add_to_dataset(filename, original_filename, duration, emotion=None, source="user"):
+def add_to_dataset(filename, original_filename, duration, emotion=None, source="user", file_url=None):
     db = get_client()
     db.table("dataset_clips").insert({
         "filename": filename,
         "original_filename": original_filename,
         "duration": duration,
         "emotion": emotion,
-        "source": source
+        "source": source,
+        "file_url": file_url
     }).execute()
 
 
@@ -92,7 +93,8 @@ def get_dataset_clips():
             r["duration"],
             r["emotion"],
             r["added_at"],
-            r["source"]
+            r["source"],
+            r.get("file_url")
         ))
     return rows
 
@@ -182,7 +184,6 @@ def get_user_stats(username: str):
 
 
 def get_recent_upload_count(username: str, window_start: str) -> int:
-    """Son 1 saatte tamamlanmış upload sayısı."""
     db = get_client()
     result = db.table("audio_files").select(
         "id", count="exact"
@@ -191,7 +192,6 @@ def get_recent_upload_count(username: str, window_start: str) -> int:
 
 
 def get_oldest_recent_upload_time(username: str, window_start: str) -> str:
-    """Son 1 saat içindeki en eski completed upload'ın zamanı."""
     db = get_client()
     result = db.table("audio_files").select(
         "uploaded_at"
