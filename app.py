@@ -12,7 +12,7 @@ import streamlit as st
 import config
 import database
 import audio_utils
-import processor
+import api_client
 
 TZ_OFFSET = timedelta(hours=3)
 
@@ -484,7 +484,7 @@ def page_upload():
     msg.info("Separating vocals…")
     bar.progress(20, text="Running separation model…")
 
-    result = processor.process_audio(file_info["path"], config.OUTPUT_DIR)
+    result = api_client.process_audio(file_info["path"], config.OUTPUT_DIR)
     bar.progress(60, text="Classifying emotion…")
 
     if not result["success"]:
